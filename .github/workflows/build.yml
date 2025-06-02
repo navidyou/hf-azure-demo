@@ -1,0 +1,33 @@
+name: build-image
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/**", "Dockerfile", ".github/workflows/build.yml"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: hf-api
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Log in to ACR
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+        username:     ${{ secrets.ACR_USERNAME }}
+        password:     ${{ secrets.ACR_PASSWORD }}
+
+    - name: Build & push
+      run: |
+        TAG=${{ github.sha }}
+        docker build -t $IMAGE_NAME:$TAG .
+        docker tag $IMAGE_NAME:$TAG ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:$TAG
+        docker push ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:$TAG
+        echo $TAG > tag.txt
+
+    - name: Upload tag artefact
+      uses: actions/upload-artifact@v4
+      with: { name: image-tag, path: tag.txt }

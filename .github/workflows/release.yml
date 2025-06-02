@@ -1,0 +1,70 @@
+name: release
+
+on:
+  workflow_run:
+    workflows: ["build-image"]
+    types: [completed]
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: stage
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with: { name: image-tag }
+
+    - uses: azure/login@v2
+      with: { creds: ${{ secrets.AZURE_CREDENTIALS }} }
+
+    - name: Deploy stage
+      run: |
+        TAG=$(cat tag.txt)
+        az deployment group create -g ${{ vars.STAGE_RG }} \
+          -f infra/main.bicep -p acrName=${{ secrets.ACR_NAME }} tag=$TAG stage=stage
+
+  prod-canary:
+    needs: stage
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+    - uses: actions/download-artifact@v4
+      with: { name: image-tag }
+    - uses: azure/login@v2
+      with: { creds: ${{ secrets.AZURE_CREDENTIALS }} }
+
+    - name: Create new revision (0 %)
+      run: |
+        TAG=$(cat tag.txt)
+        az containerapp update \
+          -n sentiment-api-prod -g ${{ vars.PROD_RG }} \
+          --image ${{ secrets.ACR_LOGIN_SERVER }}/hf-api:$TAG \
+          --revision-suffix $TAG \
+          --ingress-traffic latest=0 current=100
+
+    - name: Smoke test new revision
+      run: |
+        ENDPOINT=$(az containerapp show -n sentiment-api-prod -g ${{ vars.PROD_RG }} \
+               --query properties.configuration.ingress.fqdn -o tsv)
+        curl --fail -X POST https://$ENDPOINT/predict \
+          -H "Content-Type: application/json" -d '{"text":"health probe"}'
+
+    - name: Shift 10 % traffic
+      run: |
+        TAG=$(cat tag.txt)
+        az containerapp ingress traffic set \
+          -n sentiment-api-prod -g ${{ vars.PROD_RG }} \
+          --revision-weight $TAG=10 current=90
+
+    - name: Validate 30 min
+      timeout-minutes: 30
+      run: sleep 1800
+
+    - name: Promote 100 %
+      if: success()
+      run: |
+        TAG=$(cat tag.txt)
+        az containerapp ingress traffic set \
+          -n sentiment-api-prod -g ${{ vars.PROD_RG }} \
+          --revision-weight $TAG=100
