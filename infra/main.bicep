@@ -39,7 +39,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 }
 
 // ─── Container Apps managed environment ─
-resource env 'Microsoft.App/managedEnvironments@2023-05-01-preview' = {
+resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: envName
   location: location
   properties: {
@@ -54,7 +54,7 @@ resource env 'Microsoft.App/managedEnvironments@2023-05-01-preview' = {
 }
 
 // ───────────── Container App ────────────
-resource app 'Microsoft.App/containerApps@2023-05-01-preview' = {
+resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
   location: location
   properties: {
@@ -79,7 +79,7 @@ resource app 'Microsoft.App/containerApps@2023-05-01-preview' = {
           image: '${acr.name}.azurecr.io/hf-api:${tag}'
           env: [
             { name: 'HF_MODEL_ID',                           value: modelId }
-            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.connectionString }
+            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
             { name: 'STAGE',                                 value: stage }
           ]
           resources: {
