@@ -1,8 +1,9 @@
 name: release
 
+# allow this workflow's GITHUB_TOKEN to read artifacts from other runs
 permissions:
   contents: read
-  actions: read 
+  actions: read
 
 on:
   workflow_run:
@@ -10,24 +11,25 @@ on:
     types: [completed]
 
 jobs:
+# ────────────────────────────────────────────────────────────────
   stage:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment: stage
 
     steps:
-      - name: ☁️  Download image-tag from build run
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4            # 🗄  bring repo into workspace
+
+      - uses: actions/download-artifact@v4   # ☁️  get tag.txt from build run
         with:
           name: image-tag
           path: .
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🏷  Show tag we just fetched (debug)
-        run: cat tag.txt
+      - run: echo "Tag is $(cat tag.txt)"     # 🔍  quick sanity check
 
-      - uses: azure/login@v2
+      - uses: azure/login@v2                 # 🔑  Azure CLI login
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -35,26 +37,27 @@ jobs:
         run: |
           TAG=$(cat tag.txt)
           az deployment group create \
-            -g ${{ vars.STAGE_RG }} \
+            -g ${{ secrets.STAGE_RG }} \
             -f infra/main.bicep \
             -p acrName=${{ secrets.ACR_NAME }} tag=$TAG stage=stage
 
+# ────────────────────────────────────────────────────────────────
   prod-canary:
     needs: stage
     runs-on: ubuntu-latest
     environment: production
 
     steps:
-      - name: ☁️  Download image-tag from build run
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
         with:
           name: image-tag
           path: .
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🏷  Show tag we just fetched (debug)
-        run: cat tag.txt
+      - run: echo "Tag is $(cat tag.txt)"
 
       - uses: azure/login@v2
         with:
@@ -64,14 +67,15 @@ jobs:
         run: |
           TAG=$(cat tag.txt)
           az containerapp update \
-            -n sentiment-api-prod -g ${{ vars.PROD_RG }} \
+            -n sentiment-api-prod \
+            -g ${{ secrets.PROD_RG }} \
             --image ${{ secrets.ACR_LOGIN_SERVER }}/hf-api:$TAG \
             --revision-suffix $TAG \
             --ingress-traffic latest=0 current=100
 
       - name: 🔎 Smoke test canary
         run: |
-          ENDPOINT=$(az containerapp show -n sentiment-api-prod -g ${{ vars.PROD_RG }} \
+          ENDPOINT=$(az containerapp show -n sentiment-api-prod -g ${{ secrets.PROD_RG }} \
                      --query properties.configuration.ingress.fqdn -o tsv)
           curl --fail -X POST https://$ENDPOINT/predict \
                -H "Content-Type: application/json" \
@@ -81,7 +85,7 @@ jobs:
         run: |
           TAG=$(cat tag.txt)
           az containerapp ingress traffic set \
-            -n sentiment-api-prod -g ${{ vars.PROD_RG }} \
+            -n sentiment-api-prod -g ${{ secrets.PROD_RG }} \
             --revision-weight $TAG=10 current=90
 
       - name: ⏱  Validate 30 min
@@ -93,5 +97,5 @@ jobs:
         run: |
           TAG=$(cat tag.txt)
           az containerapp ingress traffic set \
-            -n sentiment-api-prod -g ${{ vars.PROD_RG }} \
+            -n sentiment-api-prod -g ${{ secrets.PROD_RG }} \
             --revision-weight $TAG=100
