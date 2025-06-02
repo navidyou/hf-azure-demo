@@ -16,7 +16,9 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: image-tag            # 2-space indent under “with:”
+          name: image-tag
+          path: .
+          run-id: ${{ github.event.workflow_run.id }}
 
       - uses: azure/login@v2
         with:
@@ -26,7 +28,8 @@ jobs:
         run: |
           TAG=$(cat tag.txt)
           az deployment group create -g ${{ vars.STAGE_RG }} \
-            -f infra/main.bicep -p acrName=${{ secrets.ACR_NAME }} tag=$TAG stage=stage
+            -f infra/main.bicep \
+            -p acrName=${{ secrets.ACR_NAME }} tag=$TAG stage=stage
 
   prod-canary:
     needs: stage
@@ -37,6 +40,8 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: image-tag
+          path: .
+          run-id: ${{ github.event.workflow_run.id }}
 
       - uses: azure/login@v2
         with:
@@ -56,7 +61,8 @@ jobs:
           ENDPOINT=$(az containerapp show -n sentiment-api-prod -g ${{ vars.PROD_RG }} \
                      --query properties.configuration.ingress.fqdn -o tsv)
           curl --fail -X POST https://$ENDPOINT/predict \
-            -H "Content-Type: application/json" -d '{"text":"health probe"}'
+               -H "Content-Type: application/json" \
+               -d '{"text":"health probe"}'
 
       - name: Shift 10 % traffic
         run: |
