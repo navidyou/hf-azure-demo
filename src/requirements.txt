@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+gunicorn
+transformers>=4.40
+torch            # CPU build
+opentelemetry-sdk
+opentelemetry-instrumentation-fastapi
+opentelemetry-exporter-otlp
