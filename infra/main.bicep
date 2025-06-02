@@ -1,22 +1,24 @@
 // ──────────────────────────────────────────────────────────────────────────────
-// Container Apps + ACR + Log Analytics + App Insights (per-stage)
+// Container Apps -- per-environment stack
+// Azure resources: ACR (existing) • Log Analytics • App Insights
+//                  • Container Apps Environment • Container App
 // ──────────────────────────────────────────────────────────────────────────────
-param location string                                = resourceGroup().location
-param acrName  string                                // existing ACR name (plain)
-param tag      string                                // image tag to deploy
-param stage    string = 'dev'                        // dev | stage | prod
+param location string = resourceGroup().location
+param acrName  string                        // plain ACR name (no FQDN)
+param tag      string                        // image tag to deploy
+param stage    string = 'dev'                // dev | stage | prod
 param modelId  string = 'distilbert-base-uncased-finetuned-sst-2-english'
 
-// resource-scoped names
+// ───────────── derived names ─────────────
 var envName = 'aca-${stage}-env'
 var appName = 'sentiment-api-${stage}'
 
-// ───────────────────── Existing ACR ─────────────────────
+// ───────────── existing ACR ─────────────
 resource acr 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' existing = {
   name: acrName
 }
 
-// ────────────────── Log Analytics Workspace ─────────────
+// ─────── Log Analytics workspace ────────
 resource logWS 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: 'log-${stage}-${uniqueString(resourceGroup().id)}'
   location: location
@@ -25,24 +27,24 @@ resource logWS 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   }
 }
 
-// ───────────── Application Insights (connected) ─────────
+// ─────── Application Insights ───────────
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: 'ai-${stage}-${uniqueString(resourceGroup().id)}'
   location: location
   kind: 'web'
   properties: {
-    Application_Type    : 'web'
-    WorkspaceResourceId : logWS.id
+    Application_Type   : 'web'
+    WorkspaceResourceId: logWS.id
   }
 }
 
-// ──────────────── Container Apps Environment ────────────
+// ─── Container Apps managed environment ─
 resource env 'Microsoft.App/managedEnvironments@2023-05-01-preview' = {
   name: envName
   location: location
   properties: {
     appLogsConfiguration: {
-      destination: 'log-analytics'
+      destination             : 'log-analytics'
       logAnalyticsConfiguration: {
         customerId: logWS.properties.customerId
         sharedKey : logWS.listKeys().primarySharedKey
@@ -51,7 +53,7 @@ resource env 'Microsoft.App/managedEnvironments@2023-05-01-preview' = {
   }
 }
 
-// ───────────── Container App (revision-based) ───────────
+// ───────────── Container App ────────────
 resource app 'Microsoft.App/containerApps@2023-05-01-preview' = {
   name: appName
   location: location
@@ -59,8 +61,8 @@ resource app 'Microsoft.App/containerApps@2023-05-01-preview' = {
     managedEnvironmentId: env.id
     configuration: {
       ingress: {
-        external   : true
-        targetPort : 80
+        external  : true
+        targetPort: 80
       }
       registries: [
         {
@@ -76,9 +78,9 @@ resource app 'Microsoft.App/containerApps@2023-05-01-preview' = {
           name : 'api'
           image: '${acr.name}.azurecr.io/hf-api:${tag}'
           env: [
-            { name: 'HF_MODEL_ID',                         value: modelId }
-            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
-            { name: 'STAGE',                               value: stage }
+            { name: 'HF_MODEL_ID',                           value: modelId }
+            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.connectionString }
+            { name: 'STAGE',                                 value: stage }
           ]
           resources: {
             cpu   : 0.5
