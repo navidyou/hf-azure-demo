@@ -12,22 +12,26 @@ jobs:
     environment: stage
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
+      - name: ☁️  Download image-tag from build run
+        uses: actions/download-artifact@v4
         with:
           name: image-tag
           path: .
           run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷  Show tag we just fetched (debug)
+        run: cat tag.txt
 
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy stage
+      - name: 🚀 Deploy to stage
         run: |
           TAG=$(cat tag.txt)
-          az deployment group create -g ${{ vars.STAGE_RG }} \
+          az deployment group create \
+            -g ${{ vars.STAGE_RG }} \
             -f infra/main.bicep \
             -p acrName=${{ secrets.ACR_NAME }} tag=$TAG stage=stage
 
@@ -37,17 +41,22 @@ jobs:
     environment: production
 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: ☁️  Download image-tag from build run
+        uses: actions/download-artifact@v4
         with:
           name: image-tag
           path: .
           run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷  Show tag we just fetched (debug)
+        run: cat tag.txt
 
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Create new revision (0 %)
+      - name: 🐣 Create new revision (0 %)
         run: |
           TAG=$(cat tag.txt)
           az containerapp update \
@@ -56,7 +65,7 @@ jobs:
             --revision-suffix $TAG \
             --ingress-traffic latest=0 current=100
 
-      - name: Smoke test new revision
+      - name: 🔎 Smoke test canary
         run: |
           ENDPOINT=$(az containerapp show -n sentiment-api-prod -g ${{ vars.PROD_RG }} \
                      --query properties.configuration.ingress.fqdn -o tsv)
@@ -64,18 +73,18 @@ jobs:
                -H "Content-Type: application/json" \
                -d '{"text":"health probe"}'
 
-      - name: Shift 10 % traffic
+      - name: ↗️  Shift 10 % traffic
         run: |
           TAG=$(cat tag.txt)
           az containerapp ingress traffic set \
             -n sentiment-api-prod -g ${{ vars.PROD_RG }} \
             --revision-weight $TAG=10 current=90
 
-      - name: Validate 30 min
+      - name: ⏱  Validate 30 min
         timeout-minutes: 30
         run: sleep 1800
 
-      - name: Promote 100 %
+      - name: ✅ Promote 100 %
         if: success()
         run: |
           TAG=$(cat tag.txt)
