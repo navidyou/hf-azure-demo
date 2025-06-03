@@ -17,6 +17,10 @@ provider "azurerm" {
 
 locals {
   is_prod = var.stage == "prod"
+
+  container_app_env_id = var.stage == "prod" ?
+    data.azurerm_container_app_environment.existing[0].id :
+    azurerm_container_app_environment.env[0].id
 }
 
 # ─── Existing ACR ───
@@ -50,13 +54,6 @@ resource "azurerm_container_app_environment" "env" {
   location                   = var.location
   resource_group_name        = var.resource_group_name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.log.id
-}
-
-# Unified reference for container_app_environment_id
-locals {
-  container_app_env_id = local.is_prod ?
-    data.azurerm_container_app_environment.existing[0].id :
-    azurerm_container_app_environment.env[0].id
 }
 
 # ─── 1. User-assigned Managed Identity ───
