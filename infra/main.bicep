@@ -6,6 +6,8 @@
 param location string = resourceGroup().location
 param acrName  string
 param stage    string = 'dev'
+param tag      string
+
 
 // Derived names
 var envName = 'aca-${stage}-env'
