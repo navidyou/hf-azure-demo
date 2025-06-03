@@ -17,10 +17,8 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
-      # Pull repo
       - uses: actions/checkout@v4
 
-      # Get the image tag produced in build-image
       - uses: actions/download-artifact@v4
         with:
           name: image-tag
@@ -28,33 +26,28 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Export TAG to $GITHUB_ENV for later steps
       - id: tag
         run: echo "TAG=$(cat tag.txt)" >> $GITHUB_ENV
 
-      # Install Terraform
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
 
-      # Azure login (adds AZURE_* + ARM_* env vars)
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-          enable-azp-auth: true      # <-- exposes ARM_* vars for Terraform
+          enable-azp-auth: true
 
-      # Terraform init + apply for STAGE
       - name: Terraform Apply (stage)
         working-directory: terraform
         env:
-          TF_VAR_location:           ${{ secrets.LOCATION }}
-          TF_VAR_resource_group_name:${{ secrets.STAGE_RG }}
-          TF_VAR_acr_name:           ${{ secrets.ACR_NAME }}
-          TF_VAR_stage:              stage
+          TF_VAR_location:            ${{ secrets.LOCATION }}
+          TF_VAR_resource_group_name: ${{ secrets.STAGE_RG }}
+          TF_VAR_acr_name:            ${{ secrets.ACR_NAME }}
+          TF_VAR_stage:               stage
         run: |
           terraform init
-          terraform apply -auto-approve \
-            -var="image_tag=$TAG"
+          terraform apply -auto-approve -var="image_tag=$TAG"
 
 # ──────────────────────────────────────────
   prod:
@@ -87,11 +80,10 @@ jobs:
       - name: Terraform Apply (prod)
         working-directory: terraform
         env:
-          TF_VAR_location:           ${{ secrets.LOCATION }}
-          TF_VAR_resource_group_name:${{ secrets.PROD_RG }}
-          TF_VAR_acr_name:           ${{ secrets.ACR_NAME }}
-          TF_VAR_stage:              prod
+          TF_VAR_location:            ${{ secrets.LOCATION }}
+          TF_VAR_resource_group_name: ${{ secrets.PROD_RG }}
+          TF_VAR_acr_name:            ${{ secrets.ACR_NAME }}
+          TF_VAR_stage:               prod
         run: |
           terraform init
-          terraform apply -auto-approve \
-            -var="image_tag=$TAG"
+          terraform apply -auto-approve -var="image_tag=$TAG"
