@@ -1,11 +1,10 @@
-# ────────────────────────────────────────────────
 terraform {
   required_version = ">= 1.5"
 
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = ">= 4.0, < 5.0"   # any current 4.x release
+      version = ">= 4.0, < 5.0"
     }
   }
 }
@@ -39,14 +38,39 @@ resource "azurerm_container_app_environment" "env" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.log.id
 }
 
-# ─── Container App ───
+# ─── 1. User-assigned Managed Identity ───
+resource "azurerm_user_assigned_identity" "app_uami" {
+  name                = "sentiment-api-${var.stage}-uami"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+}
+
+# ─── 2. AcrPull Role Assignment ───
+resource "azurerm_role_assignment" "acr_pull" {
+  scope                = data.azurerm_container_registry.acr.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_user_assigned_identity.app_uami.principal_id
+}
+
+# ─── 3. Wait for role propagation ───
+resource "null_resource" "wait_for_acr_role" {
+  depends_on = [azurerm_role_assignment.acr_pull]
+  provisioner "local-exec" {
+    command = "echo 'Waiting 30 s for AcrPull to propagate…' && sleep 30"
+  }
+}
+
+# ─── 4. Container App ───
 resource "azurerm_container_app" "app" {
   name                         = "sentiment-api-${var.stage}"
   resource_group_name          = var.resource_group_name
   container_app_environment_id = azurerm_container_app_environment.env.id
   revision_mode                = "Multiple"
 
-  identity { type = "SystemAssigned" }
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.app_uami.id]
+  }
 
   template {
     container {
@@ -81,22 +105,8 @@ resource "azurerm_container_app" "app" {
 
   registry {
     server   = data.azurerm_container_registry.acr.login_server
-    identity = "System"
+    identity = azurerm_user_assigned_identity.app_uami.id
   }
 
-  # wait until AcrPull is live
   depends_on = [null_resource.wait_for_acr_role]
-}
-
-resource "azurerm_role_assignment" "acr_pull" {
-  scope                = data.azurerm_container_registry.acr.id
-  role_definition_name = "AcrPull"
-  principal_id         = azurerm_container_app.app.identity[0].principal_id
-}
-
-resource "null_resource" "wait_for_acr_role" {
-  provisioner "local-exec" {
-    command = "echo 'Waiting 30 s for AcrPull to propagate…' && sleep 30"
-  }
-  depends_on = [azurerm_role_assignment.acr_pull]
 }
