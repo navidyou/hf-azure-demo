@@ -17,44 +17,42 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
-      - uses: actions/checkout@v4
+    # ▸ fetch repo & tag
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        name: image-tag
+        path: .
+        run-id: ${{ github.event.workflow_run.id }}
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+    - id: tag
+      run: echo "TAG=$(cat tag.txt)" >> $GITHUB_ENV
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: image-tag
-          path: .
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+    # ▸ tooling & Azure login
+    - uses: hashicorp/setup-terraform@v3
+      with: { terraform_version: 1.6.6 }
 
-      - id: tag
-        run: echo "TAG=$(cat tag.txt)" >> $GITHUB_ENV
+    - uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.6.6
+    # ▸ Terraform apply (stage)
+    - name: Terraform Apply (stage)
+      working-directory: terraform
+      env:
+        TF_VAR_location:            ${{ secrets.LOCATION }}
+        TF_VAR_resource_group_name: ${{ secrets.STAGE_RG }}
+        TF_VAR_acr_name:            ${{ secrets.ACR_NAME }}
+        TF_VAR_stage:               stage
 
-      - uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      # ★ Map AZURE_* → ARM_* for Terraform
-      - name: Export ARM_* env vars
-        run: |
-          echo "ARM_CLIENT_ID=$AZURE_CLIENT_ID"           >> $GITHUB_ENV
-          echo "ARM_CLIENT_SECRET=$AZURE_CLIENT_SECRET"   >> $GITHUB_ENV
-          echo "ARM_TENANT_ID=$AZURE_TENANT_ID"           >> $GITHUB_ENV
-          echo "ARM_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID" >> $GITHUB_ENV
-
-      - name: Terraform Apply (stage)
-        working-directory: terraform
-        env:
-          TF_VAR_location:            ${{ secrets.LOCATION }}
-          TF_VAR_resource_group_name: ${{ secrets.STAGE_RG }}
-          TF_VAR_acr_name:            ${{ secrets.ACR_NAME }}
-          TF_VAR_stage:               stage
-        run: |
-          terraform init
-          terraform apply -auto-approve -var="image_tag=$TAG"
+        # ARM_* vars from the JSON secret
+        ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+        ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+        ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+      run: |
+        terraform init
+        terraform apply -auto-approve -var="image_tag=$TAG"
 
 # ──────────────────────────────────────────
   prod:
@@ -63,41 +61,35 @@ jobs:
     environment: production
 
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        name: image-tag
+        path: .
+        run-id: ${{ github.event.workflow_run.id }}
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+    - id: tag
+      run: echo "TAG=$(cat tag.txt)" >> $GITHUB_ENV
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: image-tag
-          path: .
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+    - uses: hashicorp/setup-terraform@v3
+      with: { terraform_version: 1.6.6 }
 
-      - id: tag
-        run: echo "TAG=$(cat tag.txt)" >> $GITHUB_ENV
+    - uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.6.6
+    - name: Terraform Apply (prod)
+      working-directory: terraform
+      env:
+        TF_VAR_location:            ${{ secrets.LOCATION }}
+        TF_VAR_resource_group_name: ${{ secrets.PROD_RG }}
+        TF_VAR_acr_name:            ${{ secrets.ACR_NAME }}
+        TF_VAR_stage:               prod
 
-      - uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      # ★ Map AZURE_* → ARM_* for Terraform
-      - name: Export ARM_* env vars
-        run: |
-          echo "ARM_CLIENT_ID=$AZURE_CLIENT_ID"           >> $GITHUB_ENV
-          echo "ARM_CLIENT_SECRET=$AZURE_CLIENT_SECRET"   >> $GITHUB_ENV
-          echo "ARM_TENANT_ID=$AZURE_TENANT_ID"           >> $GITHUB_ENV
-          echo "ARM_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID" >> $GITHUB_ENV
-
-      - name: Terraform Apply (prod)
-        working-directory: terraform
-        env:
-          TF_VAR_location:            ${{ secrets.LOCATION }}
-          TF_VAR_resource_group_name: ${{ secrets.PROD_RG }}
-          TF_VAR_acr_name:            ${{ secrets.ACR_NAME }}
-          TF_VAR_stage:               prod
-        run: |
-          terraform init
-          terraform apply -auto-approve -var="image_tag=$TAG"
+        ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+        ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+        ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+      run: |
+        terraform init
+        terraform apply -auto-approve -var="image_tag=$TAG"
