@@ -1,8 +1,10 @@
-# terraform/main.tf (variables removed — keep them only in variables.tf)
+# terraform/main.tf (ingress moved out of template)
 
 provider "azurerm" {
   features {}
 }
+
+# -------- variables are declared in variables.tf --------
 
 # ───── Get existing ACR ─────
 data "azurerm_container_registry" "acr" {
@@ -42,13 +44,20 @@ resource "azurerm_container_app" "app" {
       cpu    = 0.5
       memory = "1.0Gi"
     }
+  }
 
-    ingress {
-      external_enabled = true
-      target_port      = 8000
+  # ── Ingress (top‑level) ──
+  ingress {
+    external_enabled = true
+    target_port      = 8000
+
+    traffic_weight {
+      percentage              = 100
+      latest_revision_enabled = true
     }
   }
 
+  # ── Registry (top‑level) ──
   registry {
     server   = data.azurerm_container_registry.acr.login_server
     identity = "SystemAssigned"
