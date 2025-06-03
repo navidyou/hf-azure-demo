@@ -1,51 +1,19 @@
 name: release
 
-# allow this workflow's GITHUB_TOKEN to read artifacts from other runs
-permissions:
-  contents: read
-  actions: read
-
 on:
   workflow_run:
     workflows: ["build-image"]
     types: [completed]
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
-# ────────────────────────────────────────────────────────────────
   stage:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment: stage
-
-    steps:
-      - uses: actions/checkout@v4            # 🗄  bring repo into workspace
-
-      - uses: actions/download-artifact@v4   # ☁️  get tag.txt from build run
-        with:
-          name: image-tag
-          path: .
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - run: echo "Tag is $(cat tag.txt)"     # 🔍  quick sanity check
-
-      - uses: azure/login@v2                 # 🔑  Azure CLI login
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: 🚀 Deploy to stage
-        run: |
-          TAG=$(cat tag.txt)
-          az deployment group create \
-            -g ${{ secrets.STAGE_RG }} \
-            -f infra/main.bicep \
-            -p acrName=${{ secrets.ACR_NAME }} tag=$TAG stage=stage
-
-# ────────────────────────────────────────────────────────────────
-  prod-canary:
-    needs: stage
-    runs-on: ubuntu-latest
-    environment: production
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -59,42 +27,21 @@ jobs:
 
       - run: echo "Tag is $(cat tag.txt)"
 
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: 🐣 Create new revision (0 %)
+      - name: Terraform Init & Apply
         run: |
-          TAG=$(cat tag.txt)
-          az containerapp update \
-            -n sentiment-api-prod \
-            -g ${{ secrets.PROD_RG }} \
-            --image ${{ secrets.ACR_LOGIN_SERVER }}/hf-api:$TAG \
-            --revision-suffix $TAG 
-
-      - name: 🔎 Smoke test canary
-        run: |
-          ENDPOINT=$(az containerapp show -n sentiment-api-prod -g ${{ secrets.PROD_RG }} \
-                     --query properties.configuration.ingress.fqdn -o tsv)
-          curl --fail -X POST https://$ENDPOINT/predict \
-               -H "Content-Type: application/json" \
-               -d '{"text":"health probe"}'
-
-      - name: ↗️  Shift 10 % traffic
-        run: |
-          TAG=$(cat tag.txt)
-          az containerapp ingress traffic set \
-            -n sentiment-api-prod -g ${{ secrets.PROD_RG }} \
-            --revision-weight $TAG=10 current=90
-
-      - name: ⏱  Validate 30 min
-        timeout-minutes: 30
-        run: sleep 1800
-
-      - name: ✅ Promote 100 %
-        if: success()
-        run: |
-          TAG=$(cat tag.txt)
-          az containerapp ingress traffic set \
-            -n sentiment-api-prod -g ${{ secrets.PROD_RG }} \
-            --revision-weight $TAG=100
+          cd terraform
+          terraform init
+          terraform apply -auto-approve \
+            -var="location=${{ secrets.LOCATION }}" \
+            -var="resource_group_name=${{ secrets.STAGE_RG }}" \
+            -var="acr_name=${{ secrets.ACR_NAME }}" \
+            -var="stage=stage" \
+            -var="image_tag=$(cat ../tag.txt)"
