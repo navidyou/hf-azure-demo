@@ -1,24 +1,21 @@
 // ──────────────────────────────────────────────────────────────────────────────
-// Container Apps -- per-environment stack
+// Container Apps -- per-environment stack (Without Container App)
 // Azure resources: ACR (existing) • Log Analytics • App Insights
-//                  • Container Apps Environment • Container App
+//                  • Container Apps Environment
 // ──────────────────────────────────────────────────────────────────────────────
 param location string = resourceGroup().location
-param acrName  string                        // plain ACR name (no FQDN)
-param tag      string                        // image tag to deploy
-param stage    string = 'dev'                // dev | stage | prod
-param modelId  string = 'distilbert-base-uncased-finetuned-sst-2-english'
+param acrName  string
+param stage    string = 'dev'
 
-// ───────────── derived names ─────────────
+// Derived names
 var envName = 'aca-${stage}-env'
-var appName = 'sentiment-api-${stage}'
 
-// ───────────── existing ACR ─────────────
+// Existing ACR
 resource acr 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' existing = {
   name: acrName
 }
 
-// ─────── Log Analytics workspace ────────
+// Log Analytics workspace
 resource logWS 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: 'log-${stage}-${uniqueString(resourceGroup().id)}'
   location: location
@@ -27,7 +24,7 @@ resource logWS 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   }
 }
 
-// ─────── Application Insights ───────────
+// Application Insights
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: 'ai-${stage}-${uniqueString(resourceGroup().id)}'
   location: location
@@ -38,7 +35,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-// ─── Container Apps managed environment ─
+// Container Apps managed environment
 resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: envName
   location: location
@@ -53,53 +50,7 @@ resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {
   }
 }
 
-// ───────────── Container App ────────────
-resource app 'Microsoft.App/containerApps@2024-03-01' = {
-  name: appName
-  location: location
-  properties: {
-    managedEnvironmentId: env.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 80
-      }
-      registries: [
-        {
-          server: '${acr.name}.azurecr.io'
-          username: acr.listCredentials().username
-          password: acr.listCredentials().passwords[0].value
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: 'api'
-          image: '${acr.name}.azurecr.io/hf-api:${tag}'
-          env: [
-            { name: 'HF_MODEL_ID', value: modelId },
-            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString },
-            { name: 'STAGE', value: stage }
-          ]
-          resources: {
-            cpu: 0.5
-            memory: '1Gi'
-          }
-        }
-      ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 10
-        rules: [
-          {
-            name: 'http-auto'
-            http: {
-              concurrentRequests: 20
-            }
-          }
-        ]
-      }
-    }
-  }
-}
+// Output to reuse resources in later steps
+output containerAppsEnvId string = env.id
+output appInsightsConnectionString string = appInsights.properties.ConnectionString
+output acrLoginServer string = '${acr.name}.azurecr.io'
