@@ -1,18 +1,27 @@
-# terraform/main.tf  ── complete file ──────────────────────────────────────────
+# terraform/main.tf  ───────────────────────────────────────────────────────────
+terraform {
+  required_version = ">= 1.5"
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.20"   # 4.x contains the current autoscale schema
+    }
+  }
+}
 
 provider "azurerm" {
   features {}
 }
 
-# ───────────── variables live in variables.tf ────────────────────────────────
+# ─────────── variables live in variables.tf ───────────
 
-# ───── Get existing ACR ─────
+# ───── Existing ACR ─────
 data "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = var.acr_resource_group_name
 }
 
-# ───── Log Analytics Workspace ─────
+# ───── Log Analytics ─────
 resource "azurerm_log_analytics_workspace" "log" {
   name                = "log-${var.stage}"
   location            = var.location
@@ -32,36 +41,42 @@ resource "azurerm_container_app_environment" "env" {
 # ───── Container App (with KEDA autoscaling) ─────
 resource "azurerm_container_app" "app" {
   name                         = "sentiment-api-${var.stage}"
-  container_app_environment_id = azurerm_container_app_environment.env.id
   resource_group_name          = var.resource_group_name
+  container_app_environment_id = azurerm_container_app_environment.env.id
   revision_mode                = "Multiple"
 
   template {
-
-    # ── workload definition ──
+    # ---------- workload ----------
     container {
       name   = "api"
       image  = "${data.azurerm_container_registry.acr.login_server}/hf-api:${var.image_tag}"
-      cpu    = 0.5               # 0.5 vCPU per replica
-      memory = "1.0Gi"           # 1 GiB RAM per replica
+      cpu    = 0.5
+      memory = "1.0Gi"
     }
 
-    # ── autoscale with KEDA ──
-    scale {
-      min_replicas = 1           # never go below 1
-      max_replicas = 10          # burst up to 10
+    # ---------- KEDA autoscale ----------
+    min_replicas      = 1     # keep one instance warm
+    max_replicas      = 10    # burst limit
+    polling_interval  = 30    # seconds (default)
+    cooldown_period   = 60    # seconds before scale-in
 
-      rule {
-        name = "cpu-autoscale"
+    custom_scale_rule {
+      name             = "cpu-autoscale"
+      custom_rule_type = "cpu"
 
-        cpu {
-          utilization = 70       # target 70 % average CPU
-        }
+      /*
+         metadata keys for the CPU scaler:
+         – type   : “Utilization” or “AverageValue”
+         – value  : utilisation percentage, 1-100
+      */
+      metadata = {
+        type  = "Utilization"
+        value = "70"          # target 70 % avg CPU
       }
     }
   }
 
-  # ── Ingress ──
+  # ---------- Ingress ----------
   ingress {
     external_enabled = true
     target_port      = 8000
@@ -72,13 +87,12 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # ── ACR registry credentials (uses MSI) ──
+  # ---------- ACR auth ----------
   registry {
     server   = data.azurerm_container_registry.acr.login_server
     identity = "SystemAssigned"
   }
 
-  # ── Managed identity ──
   identity {
     type = "SystemAssigned"
   }
