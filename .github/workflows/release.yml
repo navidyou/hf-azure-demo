@@ -36,20 +36,39 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+    - name: Terraform Init (stage)
+      working-directory: terraform
+      env:
+        ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+        ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+        ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+      run: terraform init -input=false
+
+    # ── Import existing managed environment if not yet tracked ──
+    - name: Terraform Import env (stage)
+      working-directory: terraform
+      env:
+        ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+      run: |
+        terraform import -input=false \
+          azurerm_container_app_environment.env \
+          "/subscriptions/${ARM_SUBSCRIPTION_ID}/resourceGroups/${{ secrets.STAGE_RG }}/providers/Microsoft.App/managedEnvironments/${{ secrets.STAGE_ENV_NAME }}" \
+          || echo "env already imported"
+
     - name: Terraform Apply (stage)
       working-directory: terraform
       env:
         TF_VAR_location:                  ${{ secrets.LOCATION }}
         TF_VAR_resource_group_name:       ${{ secrets.STAGE_RG }}
         TF_VAR_acr_name:                  ${{ secrets.ACR_NAME }}
-        TF_VAR_acr_resource_group_name:   ${{ secrets.ACR_RG }}   # <── NEW
+        TF_VAR_acr_resource_group_name:   ${{ secrets.ACR_RG }}
         TF_VAR_stage:                     stage
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
         ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
         ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
         ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
       run: |
-        terraform init -input=false
         terraform apply -auto-approve -input=false -var="image_tag=$TAG"
 
 # ──────────────────────────────────────────
@@ -78,18 +97,36 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+    - name: Terraform Init (prod)
+      working-directory: terraform
+      env:
+        ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+        ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+        ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+      run: terraform init -input=false
+
+    - name: Terraform Import env (prod)
+      working-directory: terraform
+      env:
+        ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+      run: |
+        terraform import -input=false \
+          azurerm_container_app_environment.env \
+          "/subscriptions/${ARM_SUBSCRIPTION_ID}/resourceGroups/${{ secrets.PROD_RG }}/providers/Microsoft.App/managedEnvironments/${{ secrets.PROD_ENV_NAME }}" \
+          || echo "env already imported"
+
     - name: Terraform Apply (prod)
       working-directory: terraform
       env:
         TF_VAR_location:                  ${{ secrets.LOCATION }}
         TF_VAR_resource_group_name:       ${{ secrets.PROD_RG }}
         TF_VAR_acr_name:                  ${{ secrets.ACR_NAME }}
-        TF_VAR_acr_resource_group_name:   ${{ secrets.ACR_RG }}   # <── NEW
+        TF_VAR_acr_resource_group_name:   ${{ secrets.ACR_RG }}
         TF_VAR_stage:                     prod
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
         ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
         ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
         ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
       run: |
-        terraform init -input=false
         terraform apply -auto-approve -input=false -var="image_tag=$TAG"
