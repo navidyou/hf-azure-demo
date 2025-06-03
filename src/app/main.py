@@ -1,7 +1,7 @@
 import os, time
 from fastapi import FastAPI
 from pydantic import BaseModel
-from model_loader import get_pipeline
+from app.model_loader import get_pipeline
 
 # --- optional OpenTelemetry ---
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -21,7 +21,7 @@ FastAPIInstrumentor.instrument_app(app)
 
 class InferenceRequest(BaseModel):
     text: str
-#lets see hellooooo heloooo hAHAAA
+
 @app.post("/predict")
 async def predict(req: InferenceRequest):
     start = time.perf_counter()

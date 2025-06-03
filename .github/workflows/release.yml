@@ -123,6 +123,8 @@ jobs:
         TF_VAR_acr_resource_group_name: ${{ secrets.ACR_RG }}
         TF_VAR_stage:                   prod
         TF_VAR_image_tag:               "dummy" 
+        TF_VAR_existing_env_name:       ${{ secrets.STAGE_ENV_NAME }}
+        TF_VAR_existing_env_rg_name:    ${{ secrets.STAGE_RG }}
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
       run: |
         terraform import -input=false \
