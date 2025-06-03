@@ -1,11 +1,12 @@
-# terraform/main.tf  ───────────────────────────────────────────────────────────
+# terraform/main.tf ────────────────────────────────────────────────────────────
 terraform {
   required_version = ">= 1.5"
 
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.32"   # any 4.x ≥ 4.20 OK – update if you wish
+      # any 4.x version that exists today (currently up to 4.21.1)
+      version = ">= 4.0, < 5.0"
     }
   }
 }
@@ -14,15 +15,15 @@ provider "azurerm" {
   features {}
 }
 
-# ─────────────── variables live in variables.tf ──────────────────────────────
+# ─────────── variables are declared in variables.tf ───────────
 
-# ───── Existing ACR ─────
+# ─── Existing ACR ───
 data "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = var.acr_resource_group_name
 }
 
-# ───── Log Analytics ─────
+# ─── Log Analytics ───
 resource "azurerm_log_analytics_workspace" "log" {
   name                = "log-${var.stage}"
   location            = var.location
@@ -31,7 +32,7 @@ resource "azurerm_log_analytics_workspace" "log" {
   retention_in_days   = 30
 }
 
-# ───── Container App Environment ─────
+# ─── Container Apps Environment ───
 resource "azurerm_container_app_environment" "env" {
   name                       = "aca-${var.stage}-env"
   location                   = var.location
@@ -39,7 +40,7 @@ resource "azurerm_container_app_environment" "env" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.log.id
 }
 
-# ───── Container App (CPU-based KEDA autoscaling) ─────
+# ─── Container App with CPU-based autoscaling ───
 resource "azurerm_container_app" "app" {
   name                         = "sentiment-api-${var.stage}"
   resource_group_name          = var.resource_group_name
@@ -47,7 +48,7 @@ resource "azurerm_container_app" "app" {
   revision_mode                = "Multiple"
 
   template {
-    # ---------------- workload ----------------
+    # ── container spec ──
     container {
       name   = "api"
       image  = "${data.azurerm_container_registry.acr.login_server}/hf-api:${var.image_tag}"
@@ -55,33 +56,32 @@ resource "azurerm_container_app" "app" {
       memory = "1.0Gi"
     }
 
-    # ---------------- autoscale ----------------
-    min_replicas = 1      # keep one replica warm
-    max_replicas = 10     # burst cap
+    # ── KEDA autoscale (provider ≥4.0) ──
+    min_replicas = 1
+    max_replicas = 10
 
     custom_scale_rule {
       name             = "cpu-autoscale"
       custom_rule_type = "cpu"
-
       metadata = {
-        type  = "Utilization"  # what to measure
-        value = "70"           # target %
+        type  = "Utilization"  # watch average utilisation
+        value = "70"           # target 70 %
       }
     }
   }
 
-  # ---------------- ingress ----------------
+  # ── Ingress ──
   ingress {
     external_enabled = true
     target_port      = 8000
 
     traffic_weight {
-      percentage      = 100
       latest_revision = true
+      percentage      = 100
     }
   }
 
-  # ---------------- ACR auth ----------------
+  # ── ACR pull via MSI ──
   registry {
     server   = data.azurerm_container_registry.acr.login_server
     identity = "SystemAssigned"
