@@ -37,7 +37,7 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Terraform Init (stage, upgrade provider)
+    - name: Terraform Init (stage)
       working-directory: terraform
       env:
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
@@ -49,11 +49,16 @@ jobs:
     - name: Terraform Import env (stage)
       working-directory: terraform
       env:
+        TF_VAR_location:                ${{ secrets.LOCATION }}
+        TF_VAR_resource_group_name:     ${{ secrets.STAGE_RG }}
+        TF_VAR_acr_name:                ${{ secrets.ACR_NAME }}
+        TF_VAR_acr_resource_group_name: ${{ secrets.ACR_RG }}
+        TF_VAR_stage:                   stage
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
       run: |
         terraform import -input=false \
           azurerm_container_app_environment.env \
-          "/subscriptions/${ARM_SUBSCRIPTION_ID}/resourceGroups/${{ secrets.STAGE_RG }}/providers/Microsoft.App/managedEnvironments/${{ secrets.STAGE_ENV_NAME }}" \
+          "/subscriptions/${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}/resourceGroups/${{ secrets.STAGE_RG }}/providers/Microsoft.App/managedEnvironments/${{ secrets.STAGE_ENV_NAME }}" \
           || echo "env already imported"
 
     - name: Terraform Apply (stage)
@@ -64,6 +69,8 @@ jobs:
         TF_VAR_acr_name:                ${{ secrets.ACR_NAME }}
         TF_VAR_acr_resource_group_name: ${{ secrets.ACR_RG }}
         TF_VAR_stage:                   stage
+        TF_VAR_existing_env_name: ${{ secrets.STAGE_ENV_NAME }}
+        TF_VAR_existing_env_rg_name: ${{ secrets.STAGE_RG }}
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
         ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
         ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
@@ -97,7 +104,7 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Terraform Init (prod, upgrade provider)
+    - name: Terraform Init (prod)
       working-directory: terraform
       env:
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
@@ -106,14 +113,19 @@ jobs:
         ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
       run: terraform init -input=false -upgrade
 
-    - name: Terraform Import env (prod)
+    - name: Terraform Import env (prod → use STAGE env!)
       working-directory: terraform
       env:
+        TF_VAR_location:                ${{ secrets.LOCATION }}
+        TF_VAR_resource_group_name:     ${{ secrets.PROD_RG }}
+        TF_VAR_acr_name:                ${{ secrets.ACR_NAME }}
+        TF_VAR_acr_resource_group_name: ${{ secrets.ACR_RG }}
+        TF_VAR_stage:                   prod
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
       run: |
         terraform import -input=false \
           azurerm_container_app_environment.env \
-          "/subscriptions/${ARM_SUBSCRIPTION_ID}/resourceGroups/${{ secrets.PROD_RG }}/providers/Microsoft.App/managedEnvironments/${{ secrets.PROD_ENV_NAME }}" \
+          "/subscriptions/${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}/resourceGroups/${{ secrets.STAGE_RG }}/providers/Microsoft.App/managedEnvironments/${{ secrets.STAGE_ENV_NAME }}" \
           || echo "env already imported"
 
     - name: Terraform Apply (prod)
@@ -124,6 +136,8 @@ jobs:
         TF_VAR_acr_name:                ${{ secrets.ACR_NAME }}
         TF_VAR_acr_resource_group_name: ${{ secrets.ACR_RG }}
         TF_VAR_stage:                   prod
+        TF_VAR_existing_env_name:       ${{ secrets.STAGE_ENV_NAME }}
+        TF_VAR_existing_env_rg_name:    ${{ secrets.STAGE_RG }}
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
         ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
         ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
