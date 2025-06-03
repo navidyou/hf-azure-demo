@@ -13,15 +13,6 @@ provider "azurerm" {
   features {}
 }
 
-# ───────── variables live in variables.tf ─────────
-
-locals {
-  is_prod = var.stage == "prod"
-
-  container_app_env_id = var.stage == "prod" ?
-    data.azurerm_container_app_environment.existing[0].id :
-    azurerm_container_app_environment.env[0].id
-}
 
 # ─── Existing ACR ───
 data "azurerm_container_registry" "acr" {
@@ -55,6 +46,7 @@ resource "azurerm_container_app_environment" "env" {
   resource_group_name        = var.resource_group_name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.log.id
 }
+
 
 # ─── 1. User-assigned Managed Identity ───
 resource "azurerm_user_assigned_identity" "app_uami" {
