@@ -54,6 +54,7 @@ jobs:
         TF_VAR_acr_name:                ${{ secrets.ACR_NAME }}
         TF_VAR_acr_resource_group_name: ${{ secrets.ACR_RG }}
         TF_VAR_stage:                   stage
+        TF_VAR_image_tag:               "dummy"
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
       run: |
         terraform import -input=false \
@@ -121,6 +122,7 @@ jobs:
         TF_VAR_acr_name:                ${{ secrets.ACR_NAME }}
         TF_VAR_acr_resource_group_name: ${{ secrets.ACR_RG }}
         TF_VAR_stage:                   prod
+        TF_VAR_image_tag:               "dummy" 
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
       run: |
         terraform import -input=false \
