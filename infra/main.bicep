@@ -79,7 +79,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
           image: '${acr.name}.azurecr.io/hf-api:${tag}'
           env: [
             { name: 'HF_MODEL_ID',                           value: modelId }
-            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
+            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: 'InstrumentationKey=${appInsights.properties.InstrumentationKey}' }
             { name: 'STAGE',                                 value: stage }
           ]
           resources: {
