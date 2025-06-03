@@ -52,8 +52,8 @@ resource "azurerm_container_app" "app" {
     target_port      = 8000
 
     traffic_weight {
-      percentage              = 100
-      latest_revision_enabled = true
+      percentage      = 100
+      latest_revision = true
     }
   }
 
