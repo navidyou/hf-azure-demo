@@ -1,14 +1,8 @@
-# terraform/main.tf
+# terraform/main.tf (variables removed — keep them only in variables.tf)
 
 provider "azurerm" {
   features {}
 }
-
-variable "location" {}
-variable "resource_group_name" {}
-variable "acr_name" {}
-variable "image_tag" {}
-variable "stage" {}
 
 # ───── Get existing ACR ─────
 data "azurerm_container_registry" "acr" {
