@@ -2,7 +2,8 @@ fastapi
 uvicorn[standard]
 gunicorn
 transformers>=4.40
-torch            # CPU build
+torch
 opentelemetry-sdk
+opentelemetry-instrumentation
 opentelemetry-instrumentation-fastapi
 opentelemetry-exporter-otlp

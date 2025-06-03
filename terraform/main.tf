@@ -15,6 +15,10 @@ provider "azurerm" {
 
 # ───────── variables live in variables.tf ─────────
 
+locals {
+  is_prod = var.stage == "prod"
+}
+
 # ─── Existing ACR ───
 data "azurerm_container_registry" "acr" {
   name                = var.acr_name
@@ -30,12 +34,29 @@ resource "azurerm_log_analytics_workspace" "log" {
   retention_in_days   = 30
 }
 
-# ─── Container Apps Environment ───
+# ─── Conditionally Use or Create Container App Environment ───
+
+# Use existing env in production
+data "azurerm_container_app_environment" "existing" {
+  count               = local.is_prod ? 1 : 0
+  name                = var.existing_env_name
+  resource_group_name = var.existing_env_rg_name
+}
+
+# Create new env in staging
 resource "azurerm_container_app_environment" "env" {
+  count                      = local.is_prod ? 0 : 1
   name                       = "aca-${var.stage}-env"
   location                   = var.location
   resource_group_name        = var.resource_group_name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.log.id
+}
+
+# Unified reference for container_app_environment_id
+locals {
+  container_app_env_id = local.is_prod ?
+    data.azurerm_container_app_environment.existing[0].id :
+    azurerm_container_app_environment.env[0].id
 }
 
 # ─── 1. User-assigned Managed Identity ───
@@ -64,7 +85,7 @@ resource "null_resource" "wait_for_acr_role" {
 resource "azurerm_container_app" "app" {
   name                         = "sentiment-api-${var.stage}"
   resource_group_name          = var.resource_group_name
-  container_app_environment_id = azurerm_container_app_environment.env.id
+  container_app_environment_id = local.container_app_env_id
   revision_mode                = "Multiple"
 
   identity {

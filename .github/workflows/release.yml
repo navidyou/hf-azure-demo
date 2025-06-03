@@ -37,7 +37,7 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Terraform Init (stage, upgrade provider)
+    - name: Terraform Init (stage)
       working-directory: terraform
       env:
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
@@ -48,12 +48,10 @@ jobs:
 
     - name: Terraform Import env (stage)
       working-directory: terraform
-      env:
-        ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
       run: |
         terraform import -input=false \
           azurerm_container_app_environment.env \
-          "/subscriptions/${ARM_SUBSCRIPTION_ID}/resourceGroups/${{ secrets.STAGE_RG }}/providers/Microsoft.App/managedEnvironments/${{ secrets.STAGE_ENV_NAME }}" \
+          "/subscriptions/${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}/resourceGroups/${{ secrets.STAGE_RG }}/providers/Microsoft.App/managedEnvironments/${{ secrets.STAGE_ENV_NAME }}" \
           || echo "env already imported"
 
     - name: Terraform Apply (stage)
@@ -97,7 +95,7 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Terraform Init (prod, upgrade provider)
+    - name: Terraform Init (prod)
       working-directory: terraform
       env:
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
@@ -106,14 +104,12 @@ jobs:
         ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
       run: terraform init -input=false -upgrade
 
-    - name: Terraform Import env (prod)
+    - name: Terraform Import env (prod → use STAGE env!)
       working-directory: terraform
-      env:
-        ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
       run: |
         terraform import -input=false \
           azurerm_container_app_environment.env \
-          "/subscriptions/${ARM_SUBSCRIPTION_ID}/resourceGroups/${{ secrets.PROD_RG }}/providers/Microsoft.App/managedEnvironments/${{ secrets.PROD_ENV_NAME }}" \
+          "/subscriptions/${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}/resourceGroups/${{ secrets.STAGE_RG }}/providers/Microsoft.App/managedEnvironments/${{ secrets.STAGE_ENV_NAME }}" \
           || echo "env already imported"
 
     - name: Terraform Apply (prod)

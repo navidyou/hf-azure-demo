@@ -1,29 +1,23 @@
-﻿# -----------------------------------------------------------------------------
-# Hugging Face + FastAPI + Gunicorn + NGINX container
-# -----------------------------------------------------------------------------
+﻿FROM python:3.11-slim
 
-# 1. Base image
-FROM python:3.11-slim
+# Install system dependencies (if needed)
+RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
 
-# 2. Install system packages (NGINX)
-RUN apt-get update && \
-    apt-get install -y nginx && \
-    rm -rf /var/lib/apt/lists/*
-
-# 3. Set work directory
+# Set work directory
 WORKDIR /code
 
-# 4. Python dependencies
+# Install Python dependencies
 COPY src/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Copy application code & nginx config
+# Copy application code
 COPY src/app /code/app
-COPY src/nginx/nginx.conf /etc/nginx/nginx.conf
 
-# 6. Environment variables
-ENV HF_MODEL_ID="distilbert-base-uncased-finetuned-sst-2-english" \
-    GUNICORN_CMD_ARGS="--workers=2 --worker-class=uvicorn.workers.UvicornWorker --bind=0.0.0.0:8000 --timeout 120"
+# Expose the port Azure will map (optional but clear)
+EXPOSE 8000
 
-# 7. Startup command
-CMD service nginx start && gunicorn app.main:app
+# Environment variable for the model (optional)
+ENV HF_MODEL_ID="distilbert-base-uncased-finetuned-sst-2-english"
+
+# Start FastAPI app directly with Uvicorn
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
