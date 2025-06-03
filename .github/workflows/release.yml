@@ -17,18 +17,18 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
-    # ▸ fetch repo & tag
     - uses: actions/checkout@v4
+
     - uses: actions/download-artifact@v4
       with:
         name: image-tag
         path: .
         run-id: ${{ github.event.workflow_run.id }}
         github-token: ${{ secrets.GITHUB_TOKEN }}
+
     - id: tag
       run: echo "TAG=$(cat tag.txt)" >> $GITHUB_ENV
 
-    # ▸ tooling & Azure login
     - uses: hashicorp/setup-terraform@v3
       with: { terraform_version: 1.6.6 }
 
@@ -36,23 +36,21 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    # ▸ Terraform apply (stage)
     - name: Terraform Apply (stage)
       working-directory: terraform
       env:
-        TF_VAR_location:            ${{ secrets.LOCATION }}
-        TF_VAR_resource_group_name: ${{ secrets.STAGE_RG }}
-        TF_VAR_acr_name:            ${{ secrets.ACR_NAME }}
-        TF_VAR_stage:               stage
-
-        # ARM_* vars from the JSON secret
+        TF_VAR_location:                  ${{ secrets.LOCATION }}
+        TF_VAR_resource_group_name:       ${{ secrets.STAGE_RG }}
+        TF_VAR_acr_name:                  ${{ secrets.ACR_NAME }}
+        TF_VAR_acr_resource_group_name:   ${{ secrets.ACR_RG }}   # <── NEW
+        TF_VAR_stage:                     stage
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
         ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
         ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
         ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
       run: |
-        terraform init
-        terraform apply -auto-approve -var="image_tag=$TAG"
+        terraform init -input=false
+        terraform apply -auto-approve -input=false -var="image_tag=$TAG"
 
 # ──────────────────────────────────────────
   prod:
@@ -62,12 +60,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+
     - uses: actions/download-artifact@v4
       with:
         name: image-tag
         path: .
         run-id: ${{ github.event.workflow_run.id }}
         github-token: ${{ secrets.GITHUB_TOKEN }}
+
     - id: tag
       run: echo "TAG=$(cat tag.txt)" >> $GITHUB_ENV
 
@@ -81,15 +81,15 @@ jobs:
     - name: Terraform Apply (prod)
       working-directory: terraform
       env:
-        TF_VAR_location:            ${{ secrets.LOCATION }}
-        TF_VAR_resource_group_name: ${{ secrets.PROD_RG }}
-        TF_VAR_acr_name:            ${{ secrets.ACR_NAME }}
-        TF_VAR_stage:               prod
-
+        TF_VAR_location:                  ${{ secrets.LOCATION }}
+        TF_VAR_resource_group_name:       ${{ secrets.PROD_RG }}
+        TF_VAR_acr_name:                  ${{ secrets.ACR_NAME }}
+        TF_VAR_acr_resource_group_name:   ${{ secrets.ACR_RG }}   # <── NEW
+        TF_VAR_stage:                     prod
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
         ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
         ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
         ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
       run: |
-        terraform init
-        terraform apply -auto-approve -var="image_tag=$TAG"
+        terraform init -input=false
+        terraform apply -auto-approve -input=false -var="image_tag=$TAG"
