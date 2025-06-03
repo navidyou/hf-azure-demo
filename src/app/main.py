@@ -21,7 +21,7 @@ FastAPIInstrumentor.instrument_app(app)
 
 class InferenceRequest(BaseModel):
     text: str
-#lets see hellooooo
+#lets see hellooooo helo
 @app.post("/predict")
 async def predict(req: InferenceRequest):
     start = time.perf_counter()
