@@ -70,8 +70,7 @@ jobs:
             -n sentiment-api-prod \
             -g ${{ secrets.PROD_RG }} \
             --image ${{ secrets.ACR_LOGIN_SERVER }}/hf-api:$TAG \
-            --revision-suffix $TAG \
-            --ingress-traffic latest=0 current=100
+            --revision-suffix $TAG 
 
       - name: 🔎 Smoke test canary
         run: |
