@@ -1,10 +1,10 @@
-# terraform/main.tf (ingress moved out of template)
+# terraform/main.tf  ── complete file ──────────────────────────────────────────
 
 provider "azurerm" {
   features {}
 }
 
-# -------- variables are declared in variables.tf --------
+# ───────────── variables live in variables.tf ────────────────────────────────
 
 # ───── Get existing ACR ─────
 data "azurerm_container_registry" "acr" {
@@ -21,7 +21,6 @@ resource "azurerm_log_analytics_workspace" "log" {
   retention_in_days   = 30
 }
 
-
 # ───── Container App Environment ─────
 resource "azurerm_container_app_environment" "env" {
   name                       = "aca-${var.stage}-env"
@@ -30,39 +29,39 @@ resource "azurerm_container_app_environment" "env" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.log.id
 }
 
-# ───── Container App ─────
+# ───── Container App (with KEDA autoscaling) ─────
 resource "azurerm_container_app" "app" {
-  name                          = "sentiment-api-${var.stage}"
+  name                         = "sentiment-api-${var.stage}"
   container_app_environment_id = azurerm_container_app_environment.env.id
-  resource_group_name           = var.resource_group_name
-  revision_mode                 = "Multiple"
+  resource_group_name          = var.resource_group_name
+  revision_mode                = "Multiple"
 
   template {
+
+    # ── workload definition ──
     container {
       name   = "api"
       image  = "${data.azurerm_container_registry.acr.login_server}/hf-api:${var.image_tag}"
-      cpu    = 0.5
-      memory = "1.0Gi"
+      cpu    = 0.5               # 0.5 vCPU per replica
+      memory = "1.0Gi"           # 1 GiB RAM per replica
     }
 
-    # 🔁 KEDA-style autoscaling based on CPU usage
+    # ── autoscale with KEDA ──
     scale {
-      min_replicas = 1
-      max_replicas = 5
+      min_replicas = 1           # never go below 1
+      max_replicas = 10          # burst up to 10
 
       rule {
-        name = "cpu-autoscaler"
-        custom {
-          type = "cpu"
-          metadata = {
-            type  = "Utilization"
-            value = "70" # Target CPU utilization %
-          }
+        name = "cpu-autoscale"
+
+        cpu {
+          utilization = 70       # target 70 % average CPU
         }
       }
     }
   }
 
+  # ── Ingress ──
   ingress {
     external_enabled = true
     target_port      = 8000
@@ -73,11 +72,13 @@ resource "azurerm_container_app" "app" {
     }
   }
 
+  # ── ACR registry credentials (uses MSI) ──
   registry {
     server   = data.azurerm_container_registry.acr.login_server
     identity = "SystemAssigned"
   }
 
+  # ── Managed identity ──
   identity {
     type = "SystemAssigned"
   }
