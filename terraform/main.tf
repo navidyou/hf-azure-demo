@@ -46,11 +46,9 @@ resource "azurerm_container_app" "app" {
   container_app_environment_id = azurerm_container_app_environment.env.id
   revision_mode                = "Multiple"
 
-  # System-assigned managed identity for the app itself
   identity { type = "SystemAssigned" }
 
   template {
-    # ── your container ──
     container {
       name   = "api"
       image  = "${data.azurerm_container_registry.acr.login_server}/hf-api:${var.image_tag}"
@@ -58,7 +56,6 @@ resource "azurerm_container_app" "app" {
       memory = "1.0Gi"
     }
 
-    # ── autoscaling (KEDA built-in CPU rule) ──
     min_replicas = 1
     max_replicas = 10
 
@@ -66,33 +63,36 @@ resource "azurerm_container_app" "app" {
       name             = "cpu-autoscale"
       custom_rule_type = "cpu"
       metadata = {
-        type  = "Utilization"   # scale on average CPU%
+        type  = "Utilization"
         value = "70"
       }
     }
   }
 
-  # ── public HTTPS ingress ──
   ingress {
     external_enabled = true
     target_port      = 8000
-
-    traffic_weight {
-      latest_revision = true
-      percentage      = 100
-    }
+    traffic_weight { latest_revision = true percentage = 100 }
   }
 
-  # ── tell ACA how to reach the private registry ──
   registry {
     server   = data.azurerm_container_registry.acr.login_server
-    identity = "System"          # ← **correct token**
+    identity = "System"
   }
+
+  # wait until AcrPull is live
+  depends_on = [null_resource.wait_for_acr_role]
 }
 
-# ─── Give the app permission to pull from ACR ───
 resource "azurerm_role_assignment" "acr_pull" {
   scope                = data.azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
   principal_id         = azurerm_container_app.app.identity[0].principal_id
+}
+
+resource "null_resource" "wait_for_acr_role" {
+  provisioner "local-exec" {
+    command = "echo 'Waiting 30 s for AcrPull to propagate…' && sleep 30"
+  }
+  depends_on = [azurerm_role_assignment.acr_pull]
 }
