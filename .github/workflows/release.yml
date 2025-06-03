@@ -62,6 +62,8 @@ jobs:
         TF_VAR_acr_name:                ${{ secrets.ACR_NAME }}
         TF_VAR_acr_resource_group_name: ${{ secrets.ACR_RG }}
         TF_VAR_stage:                   stage
+        TF_VAR_existing_env_name: ${{ secrets.STAGE_ENV_NAME }}
+        TF_VAR_existing_env_rg_name: ${{ secrets.STAGE_RG }}
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
         ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
         ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
@@ -120,6 +122,8 @@ jobs:
         TF_VAR_acr_name:                ${{ secrets.ACR_NAME }}
         TF_VAR_acr_resource_group_name: ${{ secrets.ACR_RG }}
         TF_VAR_stage:                   prod
+        TF_VAR_existing_env_name:       ${{ secrets.STAGE_ENV_NAME }}
+        TF_VAR_existing_env_rg_name:    ${{ secrets.STAGE_RG }}
         ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
         ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
         ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
