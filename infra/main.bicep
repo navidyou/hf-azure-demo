@@ -124,7 +124,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
         maxReplicas: 10
         rules: [
           {
-            name: 'http-auto'
+            name: 'http-auto',
             http: {
               concurrentRequests: 20
             }
