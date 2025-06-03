@@ -36,7 +36,14 @@ jobs:
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-          enable-azp-auth: true
+
+      # ★ Map AZURE_* → ARM_* for Terraform
+      - name: Export ARM_* env vars
+        run: |
+          echo "ARM_CLIENT_ID=$AZURE_CLIENT_ID"           >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=$AZURE_CLIENT_SECRET"   >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=$AZURE_TENANT_ID"           >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID" >> $GITHUB_ENV
 
       - name: Terraform Apply (stage)
         working-directory: terraform
@@ -75,7 +82,14 @@ jobs:
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-          enable-azp-auth: true
+
+      # ★ Map AZURE_* → ARM_* for Terraform
+      - name: Export ARM_* env vars
+        run: |
+          echo "ARM_CLIENT_ID=$AZURE_CLIENT_ID"           >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=$AZURE_CLIENT_SECRET"   >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=$AZURE_TENANT_ID"           >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID" >> $GITHUB_ENV
 
       - name: Terraform Apply (prod)
         working-directory: terraform
