@@ -4,6 +4,11 @@ provider "azurerm" {
   features {}
 }
 
+variable "location" {}
+variable "resource_group_name" {}
+variable "acr_name" {}
+variable "image_tag" {}
+variable "stage" {}
 
 # ───── Get existing ACR ─────
 data "azurerm_container_registry" "acr" {
@@ -40,23 +45,19 @@ resource "azurerm_container_app" "app" {
     container {
       name   = "api"
       image  = "${data.azurerm_container_registry.acr.login_server}/hf-api:${var.image_tag}"
-      resources {
-        cpu    = 0.5
-        memory = "1.0Gi"
-      }
+      cpu    = 0.5
+      memory = "1.0Gi"
     }
-  }
 
-  configuration {
     ingress {
       external_enabled = true
       target_port      = 8000
     }
+  }
 
-    registries {
-      server   = data.azurerm_container_registry.acr.login_server
-      identity = "SystemAssigned"
-    }
+  registry {
+    server   = data.azurerm_container_registry.acr.login_server
+    identity = "SystemAssigned"
   }
 
   identity {
