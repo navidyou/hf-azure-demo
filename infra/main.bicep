@@ -33,7 +33,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   location: location
   kind: 'web'
   properties: {
-    Application_Type   : 'web'
+    Application_Type: 'web'
     WorkspaceResourceId: logWS.id
   }
 }
@@ -44,10 +44,10 @@ resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {
   location: location
   properties: {
     appLogsConfiguration: {
-      destination             : 'log-analytics'
+      destination: 'log-analytics'
       logAnalyticsConfiguration: {
         customerId: logWS.properties.customerId
-        sharedKey : logWS.listKeys().primarySharedKey
+        sharedKey: logWS.listKeys().primarySharedKey
       }
     }
   }
@@ -61,12 +61,12 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
     managedEnvironmentId: env.id
     configuration: {
       ingress: {
-        external  : true
+        external: true
         targetPort: 80
       }
       registries: [
         {
-          server  : '${acr.name}.azurecr.io'
+          server: '${acr.name}.azurecr.io'
           username: acr.listCredentials().username
           password: acr.listCredentials().passwords[0].value
         }
@@ -75,7 +75,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
     template: {
       containers: [
         {
-          name : 'api'
+          name: 'api'
           image: '${acr.name}.azurecr.io/hf-api:${tag}'
           env: [
             { name: 'HF_MODEL_ID', value: modelId },
@@ -83,7 +83,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'STAGE', value: stage }
           ]
           resources: {
-            cpu   : 0.5
+            cpu: 0.5
             memory: '1Gi'
           }
         }
