@@ -12,12 +12,12 @@ from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExp
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 
 # Set up OpenTelemetry MeterProvider
-reader = PeriodicExportingMetricReader(OTLPMetricExporter())
-provider = MeterProvider(metric_readers=[reader])
-metrics.set_meter_provider(provider)
+#reader = PeriodicExportingMetricReader(OTLPMetricExporter())
+#provider = MeterProvider(metric_readers=[reader])
+#metrics.set_meter_provider(provider)
 
-meter = metrics.get_meter(__name__)
-req_counter = meter.create_counter("inference_requests")
+#meter = metrics.get_meter(__name__)
+#req_counter = meter.create_counter("inference_requests")
 
 # --- FastAPI setup ---
 app = FastAPI(title="HF Sentiment API")
@@ -32,7 +32,7 @@ async def predict(req: InferenceRequest):
     pipe = get_pipeline()
     result = pipe(req.text)[0]
     latency_ms = (time.perf_counter() - start) * 1000
-    req_counter.add(1, {"model": os.getenv("HF_MODEL_ID")})
+    #req_counter.add(1, {"model": os.getenv("HF_MODEL_ID")})
     return {
         "label": result["label"],
         "score": result["score"],

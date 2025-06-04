@@ -91,7 +91,7 @@ resource "azurerm_container_app" "app" {
     }
 
     min_replicas = 1
-    max_replicas = 10
+    max_replicas = 20
 
     custom_scale_rule {
       name             = "cpu-autoscale"
@@ -99,6 +99,15 @@ resource "azurerm_container_app" "app" {
       metadata = {
         type  = "Utilization"
         value = "70"
+      }
+    }
+
+    # --- Add HTTP scaling! ---
+    custom_scale_rule {
+      name             = "http-autoscale"
+      custom_rule_type = "http"
+      metadata = {
+        concurrent_requests = "10"  # Scale up if >10 in flight on a pod
       }
     }
   }
